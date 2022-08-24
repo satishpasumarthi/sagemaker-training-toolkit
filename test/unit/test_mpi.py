@@ -45,13 +45,20 @@ class MockSSHClient(MagicMock):
 @patch("sagemaker_training.mpi._write_env_vars_to_file")
 @patch("os.path.exists")
 @patch("time.sleep")
+@patch("sagemaker_training.mpi.WorkerRunner._wait_master_to_finish")
 @patch("paramiko.SSHClient", new_callable=MockSSHClient)
-@patch("psutil.wait_procs")
 @patch("psutil.process_iter")
 @patch("paramiko.AutoAddPolicy")
 @patch("subprocess.Popen")
 def test_mpi_worker_run(
-    popen, policy, process_iter, wait_procs, ssh_client, sleep, path_exists, write_env_vars
+    popen,
+    policy,
+    process_iter,
+    ssh_client,
+    wait_master_to_finish,
+    sleep,
+    path_exists,
+    write_env_vars,
 ):
 
     process = MagicMock(info={"name": "orted"})
@@ -73,7 +80,7 @@ def test_mpi_worker_run(
     ssh_client().set_missing_host_key_policy.assert_called_with(policy())
     ssh_client().connect.assert_called_with("algo-1", port=22)
     ssh_client().close.assert_called()
-    wait_procs.assert_called_with([process])
+    wait_master_to_finish.assert_called_once()
 
     popen.assert_called_with(["/usr/sbin/sshd", "-D"])
     path_exists.assert_called_with("/usr/sbin/sshd")

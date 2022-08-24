@@ -95,9 +95,8 @@ class WorkerRunner(process.ProcessRunner):
 
         if wait:
             logger.info("Waiting for MPI process to finish.")
-            _wait_orted_process_to_finish()
+            self._wait_master_to_finish()
             logger.info("Orted process exited")
-            time.sleep(30)
         logger.info("MPI process finished.")
 
     def _wait_master_to_start(self):  # type: () -> None
@@ -105,8 +104,11 @@ class WorkerRunner(process.ProcessRunner):
             time.sleep(1)
 
     def _wait_master_to_finish(self):  # type: () -> None
+        logger.info("Check master node connectivity")
+        sleep_timer = 30
         while _can_connect(self._master_hostname):
-            time.sleep(30)
+            logger.info(f"Can connect to master node. Sleeping for {sleep_timer} seconds")
+            time.sleep(sleep_timer)
 
 
 def _write_env_vars_to_file():  # type: () -> None
@@ -379,7 +381,11 @@ def _can_connect(host, port=22):  # type: (str, int) -> bool
     except Exception as e:  # pylint: disable=broad-except
         logger.info("Cannot connect to host %s", host)
 
-        logger.info("Connection failed with exception: \n %s", str(e))
+        logger.info(
+            "Connection failed with exception: \n %s. \
+             Can be ignored for worker when master completes and exits.",
+            str(e),
+        )
         return False
 
 

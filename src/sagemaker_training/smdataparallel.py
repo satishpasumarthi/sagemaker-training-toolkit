@@ -24,6 +24,7 @@ import paramiko
 import gethostname
 from sagemaker_training import environment, errors, logging_config, process, timeout
 
+MPI_FINISHED_STATUS_FILE = "/tmp/done"
 
 logger = logging_config.get_logger()
 logging.getLogger("paramiko").setLevel(logging.INFO)
@@ -300,6 +301,10 @@ class SMDataParallelRunner(process.ProcessRunner):
                 capture_error=capture_error,
                 cwd=environment.code_dir,
             )
+        # Write empty file to all nodes
+        for host in self._hosts:
+            if host != self._master_hostname:
+                _write_status_file(host, MPI_FINISHED_STATUS_FILE+"."+host)
         self._tear_down()
         return process_spawned
 
@@ -356,6 +361,25 @@ def _can_connect(host, port=22):
         client.close()
         logger.info("Connection closed")
 
+def _write_status_file(host, status_file, port=22):
+    try:
+        logger.info(f"Writing mpirun finished status to {host}")
+        client = paramiko.SSHClient()
+        client.load_system_host_keys()
+        client.set_missing_host_key_policy(paramiko.AutoAddPolicy())
+        client.connect(host, port=port)   
+        _, stdout, stderr = client.exec_command(f'touch {status_file}')
+        client.close()
+        if stderr is not None:
+            raise errors.ClientError(f"Error while creating a status touch file {stderr}")
+        logger.info(f"paramiko client stdout: {stdout}")
+        logger.info(f"Finished writing status file")
+    except Exception as e:
+        logger.info("Cannot connect to host %s", host)
+        logger.info("Connection failed with exception: \n %s", str(e))
+    finally:
+        client.close()
+        logger.info("Connection closed")
 
 def _parse_custom_mpi_options(custom_mpi_options):
     """Parse custom MPI options provided by user. Known options default value will be overridden

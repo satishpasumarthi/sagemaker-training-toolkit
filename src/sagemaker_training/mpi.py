@@ -28,6 +28,8 @@ from sagemaker_training import environment, errors, logging_config, process, tim
 logger = logging_config.get_logger()
 logging.getLogger("paramiko").setLevel(logging.INFO)
 
+SCRATCH_DIR = "/tmp"
+MPI_FINISHED_STATUS_FILE = "/tmp/done"
 
 def get_modelparallel_exception_classes():
     """Set exception classes"""
@@ -60,7 +62,7 @@ class WorkerRunner(process.ProcessRunner):
     master execution to finish.
     """
 
-    def __init__(self, user_entry_point, args, env_vars, processes_per_host, master_hostname):
+    def __init__(self, user_entry_point, args, env_vars, processes_per_host, master_hostname, current_host, hosts):
         """Initialize a WorkerRunner, which is responsible for preparing distributed
         training with MPI and waiting for MPI master execution to finish.
 
@@ -69,9 +71,13 @@ class WorkerRunner(process.ProcessRunner):
             args ([str]): A list of arguments to include when executing the entry point.
             env_vars (dict(str,str)): A dictionary of environment variables.
             master_hostname (str): The master hostname.
+            current_hostname (str): Current hostname
+            hosts (list): The list of hostnames.
         """
         super(WorkerRunner, self).__init__(user_entry_point, args, env_vars, processes_per_host)
         self._master_hostname = str(master_hostname)
+        self._current_host = str(current_host)
+        self._hosts = list(hosts)
 
     def run(
         self, wait=True, capture_error=False
@@ -90,13 +96,20 @@ class WorkerRunner(process.ProcessRunner):
 
         logger.info("Writing environment variables to /etc/environment for the MPI process.")
         _write_env_vars_to_file()
-
+        logger.info("Creating SSH daemon.")
         _start_sshd_daemon()
 
         if wait:
             logger.info("Waiting for MPI process to finish.")
-            self._wait_master_to_finish()
-            logger.info("Orted process exited")
+
+            _wait_orted_process_to_finish()
+            # No orted process. Now send done status to all other nodes
+            for host in self._hosts:
+                _write_status_file(host, MPI_FINISHED_STATUS_FILE+"."+self._current_host)
+            # wait for 
+            _wait_for_status_files(len(self._hosts))
+            time.sleep(30)
+
         logger.info("MPI process finished.")
 
     def _wait_master_to_start(self):  # type: () -> None
@@ -104,11 +117,8 @@ class WorkerRunner(process.ProcessRunner):
             time.sleep(1)
 
     def _wait_master_to_finish(self):  # type: () -> None
-        logger.info("Check master node connectivity")
-        sleep_timer = 30
         while _can_connect(self._master_hostname):
-            logger.info(f"Can connect to master node. Sleeping for {sleep_timer} seconds")
-            time.sleep(sleep_timer)
+            time.sleep(30)
 
 
 def _write_env_vars_to_file():  # type: () -> None
@@ -116,6 +126,12 @@ def _write_env_vars_to_file():  # type: () -> None
         for name in os.environ:
             f.write("{}={}\n".format(name, os.environ.get(name)))
 
+def _wait_for_status_files(num_hosts):
+    status_file_count = len([file for file in os.listdir(SCRATCH_DIR)])
+    while status_file_count != num_hosts-1:
+        time.sleep(30)
+        status_file_count = len([file for file in os.listdir(SCRATCH_DIR)])
+    logger.info("Found status files from all nodes")
 
 def _wait_orted_process_to_finish():  # type: () -> None
     orted = _orted_process()
@@ -329,6 +345,11 @@ class MasterRunner(process.ProcessRunner):
                 cwd=environment.code_dir,
             )
 
+        # Write empty file to all nodes
+        for host in self._hosts:
+            if host != self._master_hostname:
+                _write_status_file(host, MPI_FINISHED_STATUS_FILE+"."+self._master_hostname)
+
         self._tear_down()
         return process_spawned
 
@@ -380,14 +401,25 @@ def _can_connect(host, port=22):  # type: (str, int) -> bool
         return True
     except Exception as e:  # pylint: disable=broad-except
         logger.info("Cannot connect to host %s", host)
-
-        logger.info(
-            "Connection failed with exception: \n %s. \
-             Can be ignored for worker when master completes and exits.",
-            str(e),
-        )
+        logger.info("Connection failed with exception: \n %s", str(e))
         return False
 
+def _write_status_file(host, status_file, port=22):
+    try:
+        logger.info(f"Writing mpirun finished status to {host}")
+        client = paramiko.SSHClient()
+        client.load_system_host_keys()
+        client.set_missing_host_key_policy(paramiko.AutoAddPolicy())
+        client.connect(host, port=port)   
+        _, stdout, stderr = client.exec_command(f'touch {status_file}')
+        client.close()
+        if stderr is not None:
+            raise errors.ClientError(f"Error while creating a status touch file {stderr}")
+        logger.info(f"paramiko client stdout: {stdout}")
+        logger.info(f"Finished writing status file")
+    except Exception as e:
+        logger.info("Cannot connect to host %s", host)
+        logger.info("Connection failed with exception: \n %s", str(e))
 
 def _parse_custom_mpi_options(custom_mpi_options):
     """Parse custom MPI options provided by user. Known options default value will be overridden

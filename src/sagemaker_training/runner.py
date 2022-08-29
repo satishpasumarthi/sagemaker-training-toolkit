@@ -85,7 +85,7 @@ def _get_by_runner_type(
         )
     elif identifier is RunnerType.SMDataParallel:
         return mpi.WorkerRunner(
-            user_entry_point, args, env_vars, processes_per_host, env.master_hostname
+            user_entry_point, args, env_vars, processes_per_host, env.master_hostname, env.current_host, env.distribution_hosts
         )
     elif identifier is RunnerType.MPI and env.is_master:
         num_processes = _mpi_param_value(mpi_args, env, params.MPI_NUM_PROCESSES)
@@ -103,7 +103,7 @@ def _get_by_runner_type(
         )
     elif identifier is RunnerType.MPI:
         return mpi.WorkerRunner(
-            user_entry_point, args, env_vars, processes_per_host, env.master_hostname
+            user_entry_point, args, env_vars, processes_per_host, env.master_hostname, env.current_host, env.distribution_hosts
         )
     elif identifier is RunnerType.PyTorchXLA:
         return pytorch_xla.PyTorchXLARunner(

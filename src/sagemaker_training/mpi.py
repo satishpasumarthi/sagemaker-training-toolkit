@@ -102,12 +102,17 @@ class WorkerRunner(process.ProcessRunner):
         if wait:
             logger.info("Waiting for MPI process to finish.")
 
-            _wait_orted_process_to_finish()
+            gone, alive = _wait_orted_process_to_finish()
+            logger.info(f"gone and alive from wait_for_procs.. gone: {gone} alive: {alive}")
+            logger.info(f"Begin writing status file from {self._current_host} to other workers")
             # No orted process. Now send done status to all other nodes
             for host in self._hosts:
                 _write_status_file(host, MPI_FINISHED_STATUS_FILE+"."+self._current_host)
+            logger.info(f"End writing status file from {self._current_host} to other workers")
             # wait for 
+            logger.info(f"Begin looking for all status files on {self._current_host}")
             _wait_for_status_files(len(self._hosts))
+            logger.info("Sleep for 30 more seconds to let the processes exit gracefully")
             time.sleep(30)
 
         logger.info("MPI process finished.")
@@ -129,15 +134,22 @@ def _write_env_vars_to_file():  # type: () -> None
 def _wait_for_status_files(num_hosts):
     status_file_count = len([file for file in os.listdir(SCRATCH_DIR)])
     while status_file_count != num_hosts-1:
+        logger.info(f"current files found {status_file_count}. Need to find {num_hosts} minus 1")
+        logger.info("Count not satisfied. Going to sleep again")
         time.sleep(30)
         status_file_count = len([file for file in os.listdir(SCRATCH_DIR)])
     logger.info("Found status files from all nodes")
+
+def on_terminate(proc):
+    logger.info("Invoked on_terminate from psutil.wait_for_procs")
+    logger.info("process {} terminated with exit code {}".format(proc, proc.returncode))
 
 def _wait_orted_process_to_finish():  # type: () -> None
     orted = _orted_process()
     logger.info("Orted process found %s", orted)
     logger.info("Waiting for orted process %s", orted)
-    psutil.wait_procs(orted)
+    gone, alive= psutil.wait_procs(orted, callback=on_terminate)
+    return gone, alive
 
 
 def _orted_process():  # pylint: disable=inconsistent-return-statements
@@ -344,12 +356,12 @@ class MasterRunner(process.ProcessRunner):
                 capture_error=capture_error,
                 cwd=environment.code_dir,
             )
-
+        logger.info("Begin writing status file from master to workers")
         # Write empty file to all nodes
         for host in self._hosts:
             if host != self._master_hostname:
                 _write_status_file(host, MPI_FINISHED_STATUS_FILE+"."+self._master_hostname)
-
+        logger.info("Finished writing status file from master to workers")
         self._tear_down()
         return process_spawned
 
@@ -407,19 +419,11 @@ def _can_connect(host, port=22):  # type: (str, int) -> bool
 def _write_status_file(host, status_file, port=22):
     try:
         logger.info(f"Writing mpirun finished status to {host}")
-        client = paramiko.SSHClient()
-        client.load_system_host_keys()
-        client.set_missing_host_key_policy(paramiko.AutoAddPolicy())
-        client.connect(host, port=port)   
-        _, stdout, stderr = client.exec_command(f'touch {status_file}')
-        client.close()
-        if stderr is not None:
-            raise errors.ClientError(f"Error while creating a status touch file {stderr}")
-        logger.info(f"paramiko client stdout: {stdout}")
-        logger.info(f"Finished writing status file")
-    except Exception as e:
-        logger.info("Cannot connect to host %s", host)
-        logger.info("Connection failed with exception: \n %s", str(e))
+        output = subprocess.run(["ssh", str(host), "touch", f"{status_file}"], capture_output=True, text=True, check=True)
+        logger.info(f"output from subprocess run {output}")
+    except subprocess.CalledProcessError:
+        logger.info(f"Cannot connect to {host}")
+    logger.info(f"Finished writing status file")
 
 def _parse_custom_mpi_options(custom_mpi_options):
     """Parse custom MPI options provided by user. Known options default value will be overridden

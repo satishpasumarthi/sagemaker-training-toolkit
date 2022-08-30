@@ -107,7 +107,8 @@ class WorkerRunner(process.ProcessRunner):
             logger.info(f"Begin writing status file from {self._current_host} to other workers")
             # No orted process. Now send done status to all other nodes
             for host in self._hosts:
-                _write_status_file(host, MPI_FINISHED_STATUS_FILE+"."+self._current_host)
+                if host != self._current_host:
+                    _write_status_file(host, MPI_FINISHED_STATUS_FILE+"."+self._current_host)
             logger.info(f"End writing status file from {self._current_host} to other workers")
             # wait for 
             logger.info(f"Begin looking for all status files on {self._current_host}")

@@ -107,10 +107,13 @@ class WorkerRunner(process.ProcessRunner):
             logger.info(f"Begin writing status file from {self._current_host} to other workers")
             # No orted process. Now send done status to all other nodes
             for host in self._hosts:
-                if host != self._current_host:
-                    _write_status_file(host, MPI_FINISHED_STATUS_FILE+"."+self._current_host)
+                if host not in  [self._current_host, self._master_hostname]:
+                    status = _write_status_file(host, MPI_FINISHED_STATUS_FILE+"."+self._current_host)
+                    while status:
+                        logger.info(f"Retry creating touch file onto {host}")
+                        time.sleep(1)
+                        status = _write_status_file(host, MPI_FINISHED_STATUS_FILE+"."+self._current_host)
             logger.info(f"End writing status file from {self._current_host} to other workers")
-            time.sleep(30)
             # wait for 
             logger.info(f"Begin looking for all status files on {self._current_host}")
             _wait_for_status_files(len(self._hosts))
@@ -362,7 +365,11 @@ class MasterRunner(process.ProcessRunner):
         # Write empty file to all nodes
         for host in self._hosts:
             if host != self._master_hostname:
-                _write_status_file(host, MPI_FINISHED_STATUS_FILE+"."+self._master_hostname)
+                status = _write_status_file(host, MPI_FINISHED_STATUS_FILE+"."+self._master_hostname)
+                while status:
+                    time.sleep(1)
+                    status = _write_status_file(host, MPI_FINISHED_STATUS_FILE+"."+self._master_hostname)
+
         time.sleep(30)
         logger.info("Finished writing status file from master to workers")
         self._tear_down()
@@ -424,9 +431,11 @@ def _write_status_file(host, status_file, port=22):
         logger.info(f"Writing mpirun finished status to {host}")
         output = subprocess.run(["ssh", str(host), "touch", f"{status_file}"], capture_output=True, text=True, check=True)
         logger.info(f"output from subprocess run {output}")
+        logger.info(f"Finished writing status file")
+        return 0
     except subprocess.CalledProcessError:
         logger.info(f"Cannot connect to {host}")
-    logger.info(f"Finished writing status file")
+        return 1
 
 def _parse_custom_mpi_options(custom_mpi_options):
     """Parse custom MPI options provided by user. Known options default value will be overridden

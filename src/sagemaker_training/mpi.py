@@ -110,6 +110,7 @@ class WorkerRunner(process.ProcessRunner):
                 if host != self._current_host:
                     _write_status_file(host, MPI_FINISHED_STATUS_FILE+"."+self._current_host)
             logger.info(f"End writing status file from {self._current_host} to other workers")
+            time.sleep(30)
             # wait for 
             logger.info(f"Begin looking for all status files on {self._current_host}")
             _wait_for_status_files(len(self._hosts))
@@ -362,6 +363,7 @@ class MasterRunner(process.ProcessRunner):
         for host in self._hosts:
             if host != self._master_hostname:
                 _write_status_file(host, MPI_FINISHED_STATUS_FILE+"."+self._master_hostname)
+        time.sleep(30)
         logger.info("Finished writing status file from master to workers")
         self._tear_down()
         return process_spawned

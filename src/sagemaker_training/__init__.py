@@ -70,7 +70,4 @@ _PYTHON_ERRORS_ = [
     "InvalidArgumentError",
 ]
 
-_MPI_ERRORS_ = [
-    "mpirun.real",
-    "ORTE"
-]
+_MPI_ERRORS_ = ["mpirun.real", "ORTE"]

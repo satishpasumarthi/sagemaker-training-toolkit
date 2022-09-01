@@ -27,8 +27,8 @@ import six
 
 from sagemaker_training import (
     _entry_point_type,
-    _PYTHON_ERRORS_,
     _MPI_ERRORS_,
+    _PYTHON_ERRORS_,
     environment,
     errors,
     logging_config,

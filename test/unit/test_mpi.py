@@ -16,7 +16,7 @@ import asyncio
 import inspect
 import os
 
-from mock import ANY, MagicMock, patch
+from mock import ANY, MagicMock, patch, call
 import pytest
 
 import gethostname
@@ -30,6 +30,8 @@ def does_not_connect():
 def connect():
     pass
 
+def _on_terminate():
+    pass
 
 class AsyncMock(MagicMock):
     async def __call__(self, *args, **kwargs):
@@ -45,24 +47,19 @@ class MockSSHClient(MagicMock):
 @patch("sagemaker_training.mpi._write_env_vars_to_file")
 @patch("os.path.exists")
 @patch("time.sleep")
-@patch("sagemaker_training.mpi.WorkerRunner._wait_master_to_finish")
 @patch("paramiko.SSHClient", new_callable=MockSSHClient)
+@patch("sagemaker_training.mpi._on_terminate")
+@patch("psutil.wait_procs")
 @patch("psutil.process_iter")
 @patch("paramiko.AutoAddPolicy")
 @patch("subprocess.Popen")
 def test_mpi_worker_run(
-    popen,
-    policy,
-    process_iter,
-    ssh_client,
-    wait_master_to_finish,
-    sleep,
-    path_exists,
-    write_env_vars,
+    popen, policy, process_iter, wait_procs, on_terminate, ssh_client, sleep, path_exists, write_env_vars
 ):
 
     process = MagicMock(info={"name": "orted"})
     process_iter.side_effect = lambda attrs: [process]
+    wait_procs.return_value = (process, None)
 
     worker = mpi.WorkerRunner(
         user_entry_point="train.sh",
@@ -70,6 +67,7 @@ def test_mpi_worker_run(
         env_vars={"LD_CONFIG_PATH": "/etc/ld"},
         processes_per_host="1",
         master_hostname="algo-1",
+        current_host="algo-2",
     )
 
     worker.run()
@@ -80,10 +78,11 @@ def test_mpi_worker_run(
     ssh_client().set_missing_host_key_policy.assert_called_with(policy())
     ssh_client().connect.assert_called_with("algo-1", port=22)
     ssh_client().close.assert_called()
-    wait_master_to_finish.assert_called_once()
+    wait_procs.assert_called_with([process], callback=on_terminate)
 
     popen.assert_called_with(["/usr/sbin/sshd", "-D"])
-    path_exists.assert_called_with("/usr/sbin/sshd")
+    path_exists.call_count == 2
+    path_exists.assert_has_calls([call("/usr/sbin/sshd"), call("/tmp/done.algo-1")], any_order=True)
 
 
 @patch("sagemaker_training.mpi._write_env_vars_to_file")
@@ -97,6 +96,7 @@ def test_mpi_worker_run_no_wait(popen, ssh_client, path_exists, write_env_vars):
         env_vars={"LD_CONFIG_PATH": "/etc/ld"},
         processes_per_host=1,
         master_hostname="algo-1",
+        current_host="algo-2"
     )
 
     worker.run(wait=False)
@@ -115,8 +115,9 @@ def test_mpi_worker_run_no_wait(popen, ssh_client, path_exists, write_env_vars):
 @patch("paramiko.AutoAddPolicy")
 @patch("asyncio.create_subprocess_shell")
 @patch("sagemaker_training.environment.Environment")
+@patch("subprocess.run")
 def test_mpi_master_run(
-    training_env, async_shell, policy, ssh_client, path_exists, async_gather, event_loop
+    subprocess_run, training_env, async_shell, policy, ssh_client, path_exists, async_gather, event_loop
 ):
 
     with patch.dict(os.environ, clear=True):
@@ -206,6 +207,7 @@ def test_mpi_master_run(
         async_gather.assert_called_once()
         assert process == async_shell.return_value
         path_exists.assert_called_with("/usr/sbin/sshd")
+        subprocess_run.assert_called_once()
 
 
 @patch("asyncio.gather", new_callable=AsyncMock)

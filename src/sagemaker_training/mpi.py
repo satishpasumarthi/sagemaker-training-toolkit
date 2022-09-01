@@ -30,6 +30,7 @@ logging.getLogger("paramiko").setLevel(logging.INFO)
 
 MPI_FINISHED_STATUS_FILE = "/tmp/done"
 
+
 def get_modelparallel_exception_classes():
     """Set exception classes"""
     exception_classes = []
@@ -61,7 +62,9 @@ class WorkerRunner(process.ProcessRunner):
     master execution to finish.
     """
 
-    def __init__(self, user_entry_point, args, env_vars, processes_per_host, master_hostname, current_host):
+    def __init__(
+        self, user_entry_point, args, env_vars, processes_per_host, master_hostname, current_host
+    ):
         """Initialize a WorkerRunner, which is responsible for preparing distributed
         training with MPI and waiting for MPI master execution to finish.
 
@@ -104,15 +107,15 @@ class WorkerRunner(process.ProcessRunner):
             logger.info(f"Reporting status for ORTEd process. gone: {gone} alive: {alive}")
             logger.info("Orted process exited")
             time.sleep(30)
+            logger.info(f"Begin looking for status file on {self._current_host}")
+            status_file = MPI_FINISHED_STATUS_FILE + "." + self._master_hostname
+            file_found = self._wait_for_status_file(status_file, retry=True)
+            if file_found:
+                logger.info("Status file found. Exit gracefully")
+            else:
+                logger.info("Status file not found. Exiting...")
+            logger.info("End looking for status file")
         logger.info("MPI process finished.")
-        logger.info(f"Begin looking for status file on {self._current_host}")
-        status_file = MPI_FINISHED_STATUS_FILE+"."+self._master_hostname
-        file_found = self._wait_for_status_file(status_file, retry=True)
-        if file_found:
-            logger.info("Status file found. Exit gracefully")
-        else:
-            logger.info("Status file not found. Exiting...")
-        logger.info(f"End looking for status file")
 
     def _wait_for_status_file(self, status_file, retry=True):
 
@@ -120,7 +123,7 @@ class WorkerRunner(process.ProcessRunner):
         retry_seconds = 5 if not file_found else 0
 
         # keep trying for 5 seconds
-        while (not file_found):
+        while not file_found:
             if retry_seconds == 0:
                 break
             logger.info(f"status file {status_file} not found. Retrying...")
@@ -155,16 +158,19 @@ def _write_env_vars_to_file():  # type: () -> None
         for name in os.environ:
             f.write("{}={}\n".format(name, os.environ.get(name)))
 
-def on_terminate(proc):
+
+def _on_terminate(proc):
     logger.info("Invoked on_terminate from psutil.wait_for_procs")
     logger.info("process {} terminated with exit code {}".format(proc, proc.returncode))
+
 
 def _wait_orted_process_to_finish():  # type: () -> None
     orted = _orted_process()
     logger.info("Orted process found %s", orted)
     logger.info("Waiting for orted process %s", orted)
-    gone, alive = psutil.wait_procs(orted, callback=on_terminate)
+    gone, alive = psutil.wait_procs(orted, callback=_on_terminate)
     return gone, alive
+
 
 def _orted_process():  # pylint: disable=inconsistent-return-statements
     """Wait a maximum of 5 minutes for orted process to start."""
@@ -372,7 +378,7 @@ class MasterRunner(process.ProcessRunner):
             )
         logger.info("Begin writing status file from leader node to worker nodes")
         # Write status file to all nodes
-        status_file = MPI_FINISHED_STATUS_FILE+"."+self._master_hostname
+        status_file = MPI_FINISHED_STATUS_FILE + "." + self._master_hostname
         for host in self._hosts:
             if host != self._master_hostname:
                 status = _write_status_file(host, status_file)
@@ -449,16 +455,23 @@ def _can_connect(host, port=22):  # type: (str, int) -> bool
         )
         return False
 
+
 def _write_status_file(host, status_file):
     try:
         logger.info(f"Start writing mpirun finished status to {host}")
-        output = subprocess.run(["ssh", str(host), "touch", f"{status_file}"], capture_output=True, text=True, check=True)
+        output = subprocess.run(
+            ["ssh", str(host), "touch", f"{status_file}"],
+            capture_output=True,
+            text=True,
+            check=True,
+        )
         logger.info(f"output from subprocess run {output}")
-        logger.info(f"Finished writing status file")
+        logger.info("Finished writing status file")
         return True
     except subprocess.CalledProcessError:
         logger.info(f"Cannot connect to {host}")
         return False
+
 
 def _parse_custom_mpi_options(custom_mpi_options):
     """Parse custom MPI options provided by user. Known options default value will be overridden

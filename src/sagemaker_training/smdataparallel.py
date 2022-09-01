@@ -44,6 +44,7 @@ except Exception:  # pylint: disable=broad-except
 
 MPI_FINISHED_STATUS_FILE = "/tmp/done"
 
+
 class SMDataParallelRunner(process.ProcessRunner):
     """Prepare SMDataParallel-based distributed training.
 
@@ -304,7 +305,7 @@ class SMDataParallelRunner(process.ProcessRunner):
 
         logger.info("Begin writing status file from leader node to worker nodes")
         # Write status file to all nodes
-        status_file = MPI_FINISHED_STATUS_FILE+"."+self._master_hostname
+        status_file = MPI_FINISHED_STATUS_FILE + "." + self._master_hostname
         for host in self._hosts:
             if host != self._master_hostname:
                 status = _write_status_file(host, status_file)
@@ -379,16 +380,23 @@ def _can_connect(host, port=22):
         client.close()
         logger.info("Connection closed")
 
+
 def _write_status_file(host, status_file):
     try:
         logger.info(f"Start writing mpirun finished status to {host}")
-        output = subprocess.run(["ssh", str(host), "touch", f"{status_file}"], capture_output=True, text=True, check=True)
+        output = subprocess.run(
+            ["ssh", str(host), "touch", f"{status_file}"],
+            capture_output=True,
+            text=True,
+            check=True,
+        )
         logger.info(f"output from subprocess run {output}")
-        logger.info(f"Finished writing status file")
+        logger.info("Finished writing status file")
         return 0
     except subprocess.CalledProcessError:
         logger.info(f"Cannot connect to {host}")
         return 1
+
 
 def _parse_custom_mpi_options(custom_mpi_options):
     """Parse custom MPI options provided by user. Known options default value will be overridden

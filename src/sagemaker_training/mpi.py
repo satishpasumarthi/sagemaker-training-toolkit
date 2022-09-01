@@ -82,6 +82,8 @@ class WorkerRunner(process.ProcessRunner):
         - wait for the MPI Master to create its SSH daemon
         - start its SSH daemon
         - monitor the MPI orted process and wait it to finish the MPI execution
+        - wait for the status file from master
+        - Exit once orted process is finished and status file is found.
         """
         logger.info("Starting MPI run as worker node.")
         if wait:
@@ -129,11 +131,8 @@ class WorkerRunner(process.ProcessRunner):
             time.sleep(1)
 
     def _wait_master_to_finish(self):  # type: () -> None
-        logger.info("Check master node connectivity")
-        sleep_timer = 30
         while _can_connect(self._master_hostname):
-            logger.info(f"Can connect to master node. Sleeping for {sleep_timer} seconds")
-            time.sleep(sleep_timer)
+            time.sleep(30)
 
 
 def _write_env_vars_to_file():  # type: () -> None
@@ -363,7 +362,7 @@ class MasterRunner(process.ProcessRunner):
             if host != self._master_hostname:
                 status = _write_status_file(host, status_file)
                 retry_count = 5
-                while status and retry_count:
+                while (not status) and retry_count:
                     logger.info(f"Retry creating status file onto {host}")
                     retry_count -= 1
                     time.sleep(1)

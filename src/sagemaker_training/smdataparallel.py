@@ -308,12 +308,15 @@ class SMDataParallelRunner(process.ProcessRunner):
         for host in self._hosts:
             if host != self._master_hostname:
                 status = _write_status_file(host, status_file)
-                retry_count = 5
-                while (not status) and retry_count:
+                retry_count = 5 if not status else 0
+                while not status:
+                    if retry_count == 0:
+                        break
                     logger.info(f"Retry creating status file onto {host}")
                     retry_count -= 1
                     time.sleep(1)
                     status = _write_status_file(host, status_file)
+
                 if not status:
                     logger.info(f"Failed to create status file onto {host}")
 

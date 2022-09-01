@@ -114,19 +114,31 @@ class WorkerRunner(process.ProcessRunner):
         logger.info(f"End looking for status file")
 
     def _wait_for_status_file(self, retry=5):
-        retry_seconds = 5
+
+        file_found = os.path.exists(MPI_FINISHED_STATUS_FILE+self._master_hostname)
+        retry_seconds = 5 if file_found else 0
+
         # keep trying for 5 seconds
-        while not os.path.exists(MPI_FINISHED_STATUS_FILE+self._master_hostname) and retry_seconds:
+        while (not file_found):
+            logger.info(f"status file {MPI_FINISHED_STATUS_FILE+self._master_hostname} not found. Retrying...")
+            logger.info(os.listdir("/tmp/"))
+            if retry_seconds == 0:
+                break
             time.sleep(1)
             retry_seconds -= 1
-        if os.path.exists(MPI_FINISHED_STATUS_FILE+self._master_hostname):
+            file_found = os.path.exists(MPI_FINISHED_STATUS_FILE+self._master_hostname)
+
+        if file_found:
+            logger.info("status file found.")
             return True
         elif not _can_connect(self._master_hostname):
             logger.info("Master node seems to be down. Exiting worker...")
             return False
         elif _can_connect(self._master_hostname) and retry:
             logger.info("Can connect to master. Waiting for status file")
-            self._wait_for_status_file(retry=retry-1)
+            self._wait_for_status_file(retry=0)
+        else:
+            return False
 
     def _wait_master_to_start(self):  # type: () -> None
         while not _can_connect(self._master_hostname):
@@ -363,12 +375,15 @@ class MasterRunner(process.ProcessRunner):
         for host in self._hosts:
             if host != self._master_hostname:
                 status = _write_status_file(host, status_file)
-                retry_count = 5
-                while (not status) and retry_count:
+                retry_count = 5 if not status else 0
+                while not status:
+                    if retry_count == 0:
+                        break
                     logger.info(f"Retry creating status file onto {host}")
                     retry_count -= 1
                     time.sleep(1)
                     status = _write_status_file(host, status_file)
+
                 if not status:
                     logger.info(f"Failed to create status file onto {host}")
 

@@ -120,16 +120,16 @@ class WorkerRunner(process.ProcessRunner):
     def _wait_for_status_file(self, status_file, retry=True):
 
         file_found = os.path.exists(status_file)
-        retry_seconds = 5 if not file_found else 0
+        num_retries = 5 if not file_found else 0
 
         # keep trying for 5 seconds
         while not file_found:
-            if retry_seconds == 0:
+            if num_retries == 0:
                 break
             logger.info(f"status file {status_file} not found. Retrying...")
             logger.info(os.listdir("/tmp/"))
             time.sleep(1)
-            retry_seconds -= 1
+            num_retries -= 1
             file_found = os.path.exists(status_file)
         connect_to_master = _can_connect(self._master_hostname)
         if file_found:

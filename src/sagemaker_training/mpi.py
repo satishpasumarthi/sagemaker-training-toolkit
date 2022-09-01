@@ -106,17 +106,17 @@ class WorkerRunner(process.ProcessRunner):
             time.sleep(30)
         logger.info("MPI process finished.")
         logger.info(f"Begin looking for status file on {self._current_host}")
-        file_found = self._wait_for_status_file(retry=5)
+        file_found = self._wait_for_status_file(retry=True)
         if file_found:
             logger.info("Status file found. Exit gracefully")
         else:
             logger.info("Status file not found. Exiting...")
         logger.info(f"End looking for status file")
 
-    def _wait_for_status_file(self, retry=5):
+    def _wait_for_status_file(self, retry=True):
 
         file_found = os.path.exists(MPI_FINISHED_STATUS_FILE+self._master_hostname)
-        retry_seconds = 5 if file_found else 0
+        retry_seconds = 5 if not file_found else 0
 
         # keep trying for 5 seconds
         while (not file_found):
@@ -136,7 +136,7 @@ class WorkerRunner(process.ProcessRunner):
             return False
         elif _can_connect(self._master_hostname) and retry:
             logger.info("Can connect to master. Waiting for status file")
-            self._wait_for_status_file(retry=0)
+            self._wait_for_status_file(retry=False)
         else:
             return False
 

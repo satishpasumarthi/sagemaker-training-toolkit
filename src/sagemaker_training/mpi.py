@@ -61,7 +61,7 @@ class WorkerRunner(process.ProcessRunner):
     master execution to finish.
     """
 
-    def __init__(self, user_entry_point, args, env_vars, processes_per_host, master_hostname):
+    def __init__(self, user_entry_point, args, env_vars, processes_per_host, master_hostname, current_host):
         """Initialize a WorkerRunner, which is responsible for preparing distributed
         training with MPI and waiting for MPI master execution to finish.
 
@@ -70,9 +70,11 @@ class WorkerRunner(process.ProcessRunner):
             args ([str]): A list of arguments to include when executing the entry point.
             env_vars (dict(str,str)): A dictionary of environment variables.
             master_hostname (str): The master hostname.
+            current_hostname (str): Current hostname.
         """
         super(WorkerRunner, self).__init__(user_entry_point, args, env_vars, processes_per_host)
         self._master_hostname = str(master_hostname)
+        self._current_host = str(current_host)
 
     def run(
         self, wait=True, capture_error=False

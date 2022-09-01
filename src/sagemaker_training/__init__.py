@@ -69,3 +69,8 @@ _PYTHON_ERRORS_ = [
     "OutOfRangeError",
     "InvalidArgumentError",
 ]
+
+_MPI_ERRORS = [
+    "mpirun.real",
+    "ORTE"
+]

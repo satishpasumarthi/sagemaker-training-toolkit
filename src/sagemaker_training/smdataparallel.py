@@ -42,6 +42,7 @@ except Exception:  # pylint: disable=broad-except
     )
     exception_classes = [errors.ExecuteUserScriptError]
 
+MPI_FINISHED_STATUS_FILE = "/tmp/done"
 
 class SMDataParallelRunner(process.ProcessRunner):
     """Prepare SMDataParallel-based distributed training.
@@ -300,6 +301,25 @@ class SMDataParallelRunner(process.ProcessRunner):
                 capture_error=capture_error,
                 cwd=environment.code_dir,
             )
+
+        logger.info("Begin writing status file from leader node to worker nodes")
+        # Write status file to all nodes
+        status_file = MPI_FINISHED_STATUS_FILE+"."+self._master_hostname
+        for host in self._hosts:
+            if host != self._master_hostname:
+                status = _write_status_file(host, status_file)
+                retry_count = 5
+                while status and retry_count:
+                    logger.info(f"Retry creating status file onto {host}")
+                    retry_count -= 1
+                    time.sleep(1)
+                    status = _write_status_file(host, status_file)
+                if not status:
+                    logger.info(f"Failed to create status file onto {host}")
+
+        time.sleep(30)
+        logger.info("Finished writing status file from leader node to worker nodes")
+
         self._tear_down()
         return process_spawned
 
@@ -356,6 +376,16 @@ def _can_connect(host, port=22):
         client.close()
         logger.info("Connection closed")
 
+def _write_status_file(host, status_file):
+    try:
+        logger.info(f"Start writing mpirun finished status to {host}")
+        output = subprocess.run(["ssh", str(host), "touch", f"{status_file}"], capture_output=True, text=True, check=True)
+        logger.info(f"output from subprocess run {output}")
+        logger.info(f"Finished writing status file")
+        return 0
+    except subprocess.CalledProcessError:
+        logger.info(f"Cannot connect to {host}")
+        return 1
 
 def _parse_custom_mpi_options(custom_mpi_options):
     """Parse custom MPI options provided by user. Known options default value will be overridden

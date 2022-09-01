@@ -455,10 +455,10 @@ def _write_status_file(host, status_file):
         output = subprocess.run(["ssh", str(host), "touch", f"{status_file}"], capture_output=True, text=True, check=True)
         logger.info(f"output from subprocess run {output}")
         logger.info(f"Finished writing status file")
-        return 0
+        return True
     except subprocess.CalledProcessError:
         logger.info(f"Cannot connect to {host}")
-        return 1
+        return False
 
 def _parse_custom_mpi_options(custom_mpi_options):
     """Parse custom MPI options provided by user. Known options default value will be overridden

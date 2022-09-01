@@ -121,21 +121,21 @@ class WorkerRunner(process.ProcessRunner):
 
         # keep trying for 5 seconds
         while (not file_found):
-            logger.info(f"status file {status_file} not found. Retrying...")
-            logger.info(os.listdir("/tmp/"))
             if retry_seconds == 0:
                 break
+            logger.info(f"status file {status_file} not found. Retrying...")
+            logger.info(os.listdir("/tmp/"))
             time.sleep(1)
             retry_seconds -= 1
             file_found = os.path.exists(status_file)
-
+        connect_to_master = _can_connect(self._master_hostname)
         if file_found:
             logger.info("status file found.")
             return True
-        elif not _can_connect(self._master_hostname):
+        elif not connect_to_master:
             logger.info("Master node seems to be down. Exiting worker...")
             return False
-        elif _can_connect(self._master_hostname) and retry:
+        elif connect_to_master and retry:
             logger.info("Can connect to master. Waiting for status file")
             self._wait_for_status_file(status_file, retry=False)
         else:

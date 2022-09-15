@@ -66,24 +66,24 @@ def get_modelparallel_exception_classes():
 
 class WorkerRunner(process.ProcessRunner):
     """Runner responsible for preparing MPI distributed training and waiting for MPI
-    master execution to finish.
+    leader execution to finish.
     """
 
     def __init__(
-        self, user_entry_point, args, env_vars, processes_per_host, master_hostname, current_host
+        self, user_entry_point, args, env_vars, processes_per_host, leader_hostname, current_host
     ):
         """Initialize a WorkerRunner, which is responsible for preparing distributed
-        training with MPI and waiting for MPI master execution to finish.
+        training with MPI and waiting for MPI leader execution to finish.
 
         Args:
             user_entry_point (str): The name of the user entry point.
             args ([str]): A list of arguments to include when executing the entry point.
             env_vars (dict(str,str)): A dictionary of environment variables.
-            master_hostname (str): The master hostname.
+            leader_hostname (str): The leader hostname.
             current_hostname (str): Current hostname.
         """
         super(WorkerRunner, self).__init__(user_entry_point, args, env_vars, processes_per_host)
-        self._master_hostname = str(master_hostname)
+        self._leader_hostname = str(leader_hostname)
         self._current_host = str(current_host)
 
     def run(
@@ -94,13 +94,13 @@ class WorkerRunner(process.ProcessRunner):
         - wait for the MPI Master to create its SSH daemon
         - start its SSH daemon
         - monitor the MPI orted process and wait it to finish the MPI execution
-        - wait for the status file from master
+        - wait for the status file from leader
         - Exit once orted process is finished and status file is found.
         """
         logger.info("Starting MPI run as worker node.")
         if wait:
             logger.info("Waiting for MPI Master to create SSH daemon.")
-            self._wait_master_to_start()
+            self._wait_leader_to_start()
         logger.info("MPI Master online, creating SSH daemon.")
 
         logger.info("Writing environment variables to /etc/environment for the MPI process.")
@@ -115,7 +115,7 @@ class WorkerRunner(process.ProcessRunner):
             logger.info("Orted process exited")
             time.sleep(30)
             logger.info(f"Begin looking for status file on {self._current_host}")
-            status_file = MPI_FINISHED_STATUS_FILE + "." + self._master_hostname
+            status_file = MPI_FINISHED_STATUS_FILE + "." + self._leader_hostname
             file_found = self._wait_for_status_file(status_file)
             if file_found:
                 logger.info("MPI training job status file found. Exit gracefully")
@@ -130,20 +130,20 @@ class WorkerRunner(process.ProcessRunner):
         while not file_found:
             time.sleep(30)
             curr_time = time.time()
-            # Check connectivity with master every 2 minutes
+            # Check connectivity with leader every 2 minutes
             if int(curr_time - start_time) % 120 == 0:
                 logger.info("status file not found...")
-                if not _can_connect(self._master_hostname):
+                if not _can_connect(self._leader_hostname):
                     return False
             file_found = os.path.exists(status_file)
         return True
 
-    def _wait_master_to_start(self):  # type: () -> None
-        while not _can_connect(self._master_hostname):
+    def _wait_leader_to_start(self):  # type: () -> None
+        while not _can_connect(self._leader_hostname):
             time.sleep(1)
 
-    # def _wait_master_to_finish(self):  # type: () -> None
-    #     while _can_connect(self._master_hostname):
+    # def _wait_leader_to_finish(self):  # type: () -> None
+    #     while _can_connect(self._leader_hostname):
     #         time.sleep(30)
 
 
@@ -176,7 +176,7 @@ def _orted_process():  # pylint: disable=inconsistent-return-statements
         time.sleep(1)
 
 
-class MasterRunner(process.ProcessRunner):
+class LeaderRunner(process.ProcessRunner):
     """Responsible for preparing MPI distributed training and synchronizing work
     with the Workers.
     """
@@ -187,7 +187,7 @@ class MasterRunner(process.ProcessRunner):
         args,
         env_vars,
         processes_per_host,
-        master_hostname,
+        leader_hostname,
         hosts,
         custom_mpi_options,
         network_interface_name,
@@ -196,14 +196,14 @@ class MasterRunner(process.ProcessRunner):
         num_processes=None,
         instance_type="ml.p3.16xlarge",
     ):
-        """Initialize a MasterRunner, which is responsible for preparing distributed
+        """Initialize a LeaderRunner, which is responsible for preparing distributed
         training with MPI and synchronizing work among the Workers.
 
         Args:
             user_entry_point (str): The name of the user entry point.
             args ([str]): A list of arguments to include when executing the entry point.
             env_vars (dict(str,str)): A dictionary of environment variables.
-            master_hostname (str): The master hostname.
+            leader_hostname (str): The leader hostname.
             hosts ([str]): A list of hosts.
             processes_per_host (int): Number of processes per host.
             custom_mpi_options (str): A string of custom MPI options to be parsed.
@@ -214,9 +214,9 @@ class MasterRunner(process.ProcessRunner):
                 3600 seconds (ie. 1 hour).
         """
 
-        super(MasterRunner, self).__init__(user_entry_point, args, env_vars, processes_per_host)
+        super(LeaderRunner, self).__init__(user_entry_point, args, env_vars, processes_per_host)
 
-        self._master_hostname = master_hostname
+        self._leader_hostname = leader_hostname
         self._hosts = hosts
         self._processes_per_host = processes_per_host
         self._num_processes = num_processes
@@ -237,7 +237,7 @@ class MasterRunner(process.ProcessRunner):
     def _wait_for_workers(self):  # type: () -> None
         logger.info("Waiting for MPI workers to establish their SSH connections")
 
-        workers = [host for host in self._hosts if host != self._master_hostname]
+        workers = [host for host in self._hosts if host != self._leader_hostname]
         with timeout.timeout(seconds=self.timeout_in_seconds):
             for host in workers:
                 while not _can_connect(host):
@@ -333,14 +333,14 @@ class MasterRunner(process.ProcessRunner):
         for name in self._env_vars:
             command.extend(["-x", name])
 
-        command.extend(super(MasterRunner, self)._create_command())
+        command.extend(super(LeaderRunner, self)._create_command())
         return command
 
     def _python_command(self):
         """Use mpi4py to force processes to abort if an uncaught exception occurs.
         https://docs.chainer.org/en/stable/chainermn/tutorial/tips_faqs.html#mpi-process-hangs-after-an-unhandled-python-exception
         """
-        return super(MasterRunner, self)._python_command() + ["-m", "mpi4py"]
+        return super(LeaderRunner, self)._python_command() + ["-m", "mpi4py"]
 
     def run(self, wait=True, capture_error=False):
         """Run the process.
@@ -384,9 +384,9 @@ class MasterRunner(process.ProcessRunner):
             )
         logger.info("Begin writing status file from leader node to worker nodes (if any)")
         # Write status file to all nodes
-        status_file = MPI_FINISHED_STATUS_FILE + "." + self._master_hostname
+        status_file = MPI_FINISHED_STATUS_FILE + "." + self._leader_hostname
         for host in self._hosts:
-            if host != self._master_hostname:
+            if host != self._leader_hostname:
                 status = _write_status_file(host, status_file)
                 retry_count = 5 if not status else 0
                 while not status:
@@ -455,7 +455,7 @@ def _can_connect(host, port=22):  # type: (str, int) -> bool
         logger.info("Cannot connect to host %s", host)
         logger.info(
             "Connection failed with exception: \n %s. \
-             Can be ignored for worker when master completes and exits.",
+             Can be ignored for worker when leader completes and exits.",
             str(e),
         )
         return False

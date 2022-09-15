@@ -121,6 +121,9 @@ def install(path, capture_error=False):  # type: (str, bool) -> None
 
     if has_requirements(path):
         cmd += "-r requirements.txt"
+        logger.info("Dumping contents of requirements.txt: ")
+        with open(path, 'r') as FILE:
+            logger.info(FILE.read())
 
     logger.info("Installing module with the following command:\n%s", cmd)
 
@@ -139,8 +142,11 @@ def install_requirements(path, capture_error=False):  # type: (str, bool) -> Non
     """
     cmd = "{} -m pip install -r requirements.txt".format(process.python_executable())
 
-    logger.info("Installing dependencies from requirements.txt:\n{}".format(cmd))
+    logger.info("Dumping contents of requirements.txt: ")
+    with open(path, 'r') as FILE:
+        logger.info(FILE.read())
 
+    logger.info("Installing dependencies from requirements.txt:\n{}".format(cmd))
     process.check_error(
         shlex.split(cmd), errors.InstallRequirementsError, 1, cwd=path, capture_error=capture_error
     )

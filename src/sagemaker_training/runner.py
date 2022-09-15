@@ -69,7 +69,7 @@ def _get_by_runner_type(
         mpi_args, env, params.MPI_PROCESSES_PER_HOST, default_processes_per_host
     )
 
-    if identifier is RunnerType.SMDataParallel and env.is_master:
+    if identifier is RunnerType.SMDataParallel and env.is_leader:
         custom_mpi_options = _mpi_param_value(
             mpi_args, env, params.SMDATAPARALLEL_CUSTOM_MPI_OPTIONS, ""
         )
@@ -78,7 +78,7 @@ def _get_by_runner_type(
             args,
             env_vars,
             processes_per_host,
-            env.master_hostname,
+            env.leader_hostname,
             env.distribution_hosts,
             custom_mpi_options,
             env.network_interface_name,
@@ -89,19 +89,19 @@ def _get_by_runner_type(
             args,
             env_vars,
             processes_per_host,
-            env.master_hostname,
+            env.leader_hostname,
             env.current_host,
         )
-    elif identifier is RunnerType.MPI and env.is_master:
+    elif identifier is RunnerType.MPI and env.is_leader:
         num_processes = _mpi_param_value(mpi_args, env, params.MPI_NUM_PROCESSES)
         custom_mpi_options = _mpi_param_value(mpi_args, env, params.MPI_CUSTOM_OPTIONS, "")
         current_instance_type = env.current_instance_type
-        return mpi.MasterRunner(
+        return mpi.LeaderRunner(
             user_entry_point,
             args,
             env_vars,
             processes_per_host,
-            env.master_hostname,
+            env.leader_hostname,
             env.distribution_hosts,
             custom_mpi_options,
             env.network_interface_name,
@@ -114,7 +114,7 @@ def _get_by_runner_type(
             args,
             env_vars,
             processes_per_host,
-            env.master_hostname,
+            env.leader_hostname,
             env.current_host,
         )
     elif identifier is RunnerType.PyTorchXLA:
@@ -123,7 +123,7 @@ def _get_by_runner_type(
             args,
             env_vars,
             processes_per_host,
-            env.master_hostname,
+            env.leader_hostname,
             env.current_host,
             env.distribution_hosts,
             env.num_gpus,

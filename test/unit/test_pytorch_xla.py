@@ -28,7 +28,7 @@ def cluster(cluster_size):
 
 
 @pytest.fixture()
-def master(cluster):
+def leader(cluster):
     return cluster[0]
 
 
@@ -62,7 +62,7 @@ def num_gpus(instance_type):
 @pytest.mark.parametrize("instance_type", ["ml.p3.16xlarge", "ml.p3.2xlarge"])
 @pytest.mark.parametrize("cluster_size", [1, 4])
 class TestPyTorchXLARunner:
-    def test_setup(self, cluster, cluster_size, master, instance_type, num_gpus, *patches):
+    def test_setup(self, cluster, cluster_size, leader, instance_type, num_gpus, *patches):
         for rank, current_host in enumerate(cluster):
             print(f"Testing as host {rank+1}/{cluster_size}")
             runner = PyTorchXLARunner(
@@ -78,7 +78,7 @@ class TestPyTorchXLARunner:
                     ),
                 },
                 processes_per_host=num_gpus,
-                master_hostname=master,
+                leader_hostname=leader,
                 current_host=current_host,
                 hosts=cluster,
                 num_gpus=num_gpus,
@@ -101,11 +101,11 @@ class TestPyTorchXLARunner:
             if cluster_size > 1:
                 assert (
                     os.environ["XRT_MESH_SERVICE_ADDRESS"]
-                    == f"{master}:{PyTorchXLARunner.MESH_SERVICE_PORT}"
+                    == f"{leader}:{PyTorchXLARunner.MESH_SERVICE_PORT}"
                 )
 
     def test_create_command_with_py_script(
-        self, cluster, cluster_size, master, instance_type, num_gpus, *patches
+        self, cluster, cluster_size, leader, instance_type, num_gpus, *patches
     ):
         training_args = ["-v", "--lr", "35"]
         training_script = "train.py"
@@ -125,7 +125,7 @@ class TestPyTorchXLARunner:
                     ),
                 },
                 processes_per_host=num_gpus,
-                master_hostname=master,
+                leader_hostname=leader,
                 current_host=current_host,
                 hosts=cluster,
                 num_gpus=num_gpus,
@@ -143,7 +143,7 @@ class TestPyTorchXLARunner:
             assert received_command[1:] == expected_command[1:]
 
     def test_create_command_with_shell_script(
-        self, cluster, cluster_size, master, instance_type, num_gpus, *patches
+        self, cluster, cluster_size, leader, instance_type, num_gpus, *patches
     ):
         for current_host in cluster:
             rank = cluster.index(current_host)
@@ -161,7 +161,7 @@ class TestPyTorchXLARunner:
                     ),
                 },
                 processes_per_host=num_gpus,
-                master_hostname=master,
+                leader_hostname=leader,
                 current_host=current_host,
                 hosts=cluster,
                 num_gpus=num_gpus,
@@ -171,7 +171,7 @@ class TestPyTorchXLARunner:
             assert "Please use a python script" in str(err)
 
     def test_check_gpu_compatibility(
-        self, cluster, cluster_size, master, instance_type, num_gpus, *patches
+        self, cluster, cluster_size, leader, instance_type, num_gpus, *patches
     ):
         for rank, current_host in enumerate(cluster):
             print(f"Testing as host {rank + 1}/{cluster_size}")
@@ -188,7 +188,7 @@ class TestPyTorchXLARunner:
                     ),
                 },
                 processes_per_host=num_gpus,
-                master_hostname=master,
+                leader_hostname=leader,
                 current_host=current_host,
                 hosts=cluster,
                 num_gpus=num_gpus,
@@ -196,7 +196,7 @@ class TestPyTorchXLARunner:
             runner._check_processor_compatibility()
 
     def test_check_env_compatibility(
-        self, cluster, cluster_size, master, instance_type, num_gpus, *patches
+        self, cluster, cluster_size, leader, instance_type, num_gpus, *patches
     ):
         for rank, current_host in enumerate(cluster):
             print(f"Testing as host {rank + 1}/{cluster_size}")
@@ -213,7 +213,7 @@ class TestPyTorchXLARunner:
                     ),
                 },
                 processes_per_host=num_gpus,
-                master_hostname=master,
+                leader_hostname=leader,
                 current_host=current_host,
                 hosts=cluster,
                 num_gpus=num_gpus,
@@ -226,7 +226,7 @@ class TestPyTorchXLARunner:
             assert "Unable to find SageMaker integration code" in str(err)
 
 
-def test_check_cpu_compatibility(cluster, cluster_size, master, *patches):
+def test_check_cpu_compatibility(cluster, cluster_size, leader, *patches):
     for rank, current_host in enumerate(cluster):
         print(f"Testing as host {rank + 1}/{cluster_size}")
         runner = PyTorchXLARunner(
@@ -242,7 +242,7 @@ def test_check_cpu_compatibility(cluster, cluster_size, master, *patches):
                 ),
             },
             processes_per_host=1,
-            master_hostname=master,
+            leader_hostname=leader,
             current_host=current_host,
             hosts=cluster,
             num_gpus=0,

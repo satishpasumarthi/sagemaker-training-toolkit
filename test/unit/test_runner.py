@@ -31,7 +31,7 @@ MPI_OPTS = {
 
 
 @pytest.mark.parametrize(
-    "runner_class", [process.ProcessRunner, mpi.MasterRunner, mpi.WorkerRunner]
+    "runner_class", [process.ProcessRunner, mpi.LeaderRunner, mpi.WorkerRunner]
 )
 def test_get_runner_returns_runnner_itself(runner_class):
     runner_mock = MagicMock(spec=runner_class)
@@ -69,11 +69,11 @@ def test_get_runner_by_mpi_returns_runnner(training_env):
 
     test_runner = runner.get(runner.MPIRunnerType)
 
-    assert isinstance(test_runner, mpi.MasterRunner)
+    assert isinstance(test_runner, mpi.LeaderRunner)
     training_env().to_cmd_args.assert_called()
     training_env().to_env_vars.assert_called()
 
-    training_env().is_master = False
+    training_env().is_leader = False
     test_runner = runner.get(runner.MPIRunnerType)
 
     assert isinstance(test_runner, mpi.WorkerRunner)
@@ -88,7 +88,7 @@ def test_runnner_with_default_cpu_processes_per_host(training_env):
 
     test_runner = runner.get(runner.MPIRunnerType)
 
-    assert isinstance(test_runner, mpi.MasterRunner)
+    assert isinstance(test_runner, mpi.LeaderRunner)
     assert test_runner._processes_per_host == 1
 
 
@@ -99,7 +99,7 @@ def test_runnner_with_default_gpu_processes_per_host(training_env):
 
     test_runner = runner.get(runner.MPIRunnerType)
 
-    assert isinstance(test_runner, mpi.MasterRunner)
+    assert isinstance(test_runner, mpi.LeaderRunner)
     assert test_runner._processes_per_host == 2
 
 
@@ -109,7 +109,7 @@ def test_get_runner_by_mpi_with_extra_args(training_env):
 
     test_runner = runner.get(runner.MPIRunnerType, USER_SCRIPT, CMD_ARGS, ENV_VARS, MPI_OPTS)
 
-    assert isinstance(test_runner, mpi.MasterRunner)
+    assert isinstance(test_runner, mpi.LeaderRunner)
 
     assert test_runner._user_entry_point == USER_SCRIPT
     assert test_runner._args == CMD_ARGS
@@ -123,7 +123,7 @@ def test_get_runner_by_mpi_with_extra_args(training_env):
     training_env().user_entry_point.assert_not_called()
     training_env().additional_framework_parameters.assert_not_called()
 
-    training_env().is_master = False
+    training_env().is_leader = False
     test_runner = runner.get(runner.MPIRunnerType, USER_SCRIPT, CMD_ARGS, ENV_VARS)
 
     assert isinstance(test_runner, mpi.WorkerRunner)
@@ -146,8 +146,8 @@ def test_get_runner_invalid_identifier():
 def test_get_runner_by_pt_xla_returns_runnner(training_env):
     training_env().num_gpus = 8
 
-    for is_master in [True, False]:
-        training_env().is_master = is_master
+    for is_leader in [True, False]:
+        training_env().is_leader = is_leader
         test_runner = runner.get(runner.PyTorchXLARunnerType)
 
         assert isinstance(test_runner, pytorch_xla.PyTorchXLARunner)

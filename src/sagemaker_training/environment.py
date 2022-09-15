@@ -605,9 +605,9 @@ class Environment(mapping.MappingMixin):  # pylint:disable=too-many-public-metho
         self._distribution_hosts = distribution_hosts
         is_hetero = bool(len(self._instance_groups) > 1)
         self._is_hetero = is_hetero
-        master_hostname = self.get_master_hostname()
-        self._master_hostname = master_hostname
-        self._is_master = current_host == self._master_hostname
+        leader_hostname = self.get_leader_hostname()
+        self._leader_hostname = leader_hostname
+        self._is_leader = current_host == self._leader_hostname
         self._distribution_enabled = bool(
             self._current_instance_group in self._distribution_instance_groups
         )
@@ -670,9 +670,9 @@ class Environment(mapping.MappingMixin):  # pylint:disable=too-many-public-metho
         return self._distribution_instance_groups
 
     @property
-    def master_hostname(self):
-        """Return master hostname"""
-        return self._master_hostname
+    def leader_hostname(self):
+        """Return leader hostname"""
+        return self._leader_hostname
 
     @property
     def model_dir(self):  # type: () -> str
@@ -762,9 +762,9 @@ class Environment(mapping.MappingMixin):  # pylint:disable=too-many-public-metho
         return program_param
 
     @property
-    def is_master(self):  # type: () -> bool
-        """Returns True if host is master."""
-        return self._is_master
+    def is_leader(self):  # type: () -> bool
+        """Returns True if host is leader."""
+        return self._is_leader
 
     @property
     def job_name(self):  # type: () -> str
@@ -871,14 +871,16 @@ class Environment(mapping.MappingMixin):  # pylint:disable=too-many-public-metho
             instance_groups_dict[group["instance_group_name"]] = group
         return instance_groups_dict
 
-    def get_master_hostname(self):
+    def get_leader_hostname(self):
         """
-        Get the master hostname from the list of hosts in the distribution instance groups
+        Get the leader hostname from the list of hosts in the distribution instance groups
         """
         if self._distribution_hosts:
-            return list(self._distribution_hosts)[0]
+            sorted_dist_host_list = list(self._distribution_hosts).sort()
+            return sorted_dist_host_list[0]
         # if no distribution found
-        return list(self._hosts)[0]
+        sorted_host_list = list(self._hosts).sort()
+        return sorted_host_list[0]
 
     def sagemaker_s3_output(self):  # type: () -> str
         """S3 output directory location provided by the user.

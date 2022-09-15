@@ -74,7 +74,7 @@ def test_mpi_worker_run(
         args=["-v", "--lr", "35"],
         env_vars={"LD_CONFIG_PATH": "/etc/ld"},
         processes_per_host="1",
-        master_hostname="algo-1",
+        leader_hostname="algo-1",
         current_host="algo-2",
     )
 
@@ -103,7 +103,7 @@ def test_mpi_worker_run_no_wait(popen, ssh_client, path_exists, write_env_vars):
         args=["-v", "--lr", "35"],
         env_vars={"LD_CONFIG_PATH": "/etc/ld"},
         processes_per_host=1,
-        master_hostname="algo-1",
+        leader_hostname="algo-1",
         current_host="algo-2",
     )
 
@@ -124,7 +124,7 @@ def test_mpi_worker_run_no_wait(popen, ssh_client, path_exists, write_env_vars):
 @patch("asyncio.create_subprocess_shell")
 @patch("sagemaker_training.environment.Environment")
 @patch("subprocess.run")
-def test_mpi_master_run(
+def test_mpi_leader_run(
     subprocess_run,
     training_env,
     async_shell,
@@ -137,17 +137,17 @@ def test_mpi_master_run(
 
     with patch.dict(os.environ, clear=True):
         os.environ["AWS_ACCESS_KEY_ID"] = "ABCD"
-        master = mpi.MasterRunner(
+        leader = mpi.LeaderRunner(
             user_entry_point="train.sh",
             args=["-v", "--lr", "35"],
             env_vars={"LD_CONFIG_PATH": "/etc/ld"},
             processes_per_host=2,
-            master_hostname="algo-1",
+            leader_hostname="algo-1",
             hosts=["algo-1", "algo-2"],
             custom_mpi_options="-v --lr 35",
             network_interface_name="ethw3",
         )
-        process = master.run(wait=False)
+        process = leader.run(wait=False)
 
         ssh_client().load_system_host_keys.assert_called()
         ssh_client().set_missing_host_key_policy.assert_called_with(policy())
@@ -233,7 +233,7 @@ def test_mpi_master_run(
 @patch("asyncio.create_subprocess_shell")
 @patch("sagemaker_training.environment.Environment")
 @patch("sagemaker_training.mpi._write_status_file")
-def test_mpi_master_run_python(
+def test_mpi_leader_run_python(
     write_status_file,
     training_env,
     async_shell,
@@ -247,18 +247,18 @@ def test_mpi_master_run_python(
 
     with patch.dict(os.environ, clear=True):
 
-        master = mpi.MasterRunner(
+        leader = mpi.LeaderRunner(
             user_entry_point="train.py",
             args=["-v", "--lr", "35"],
             env_vars={"LD_CONFIG_PATH": "/etc/ld"},
-            master_hostname="algo-1",
+            leader_hostname="algo-1",
             hosts=["algo-1", "algo-2"],
             processes_per_host=2,
             custom_mpi_options="-v --lr 35",
             network_interface_name="ethw3",
         )
 
-        process = master.run(wait=False)
+        process = leader.run(wait=False)
 
         ssh_client().load_system_host_keys.assert_called()
         ssh_client().set_missing_host_key_policy.assert_called_with(policy())
@@ -345,7 +345,7 @@ def test_mpi_master_run_python(
 @patch("paramiko.AutoAddPolicy")
 @patch("asyncio.create_subprocess_shell")
 @patch("sagemaker_training.environment.Environment")
-def test_mpi_master_run_python_efa(
+def test_mpi_leader_run_python_efa(
     training_env,
     async_shell,
     policy,
@@ -358,11 +358,11 @@ def test_mpi_master_run_python_efa(
 
     with patch.dict(os.environ, clear=True):
 
-        master = mpi.MasterRunner(
+        leader = mpi.LeaderRunner(
             user_entry_point="train.py",
             args=["-v", "--lr", "35"],
             env_vars={"LD_CONFIG_PATH": "/etc/ld"},
-            master_hostname="algo-1",
+            leader_hostname="algo-1",
             hosts=["algo-1", "algo-2"],
             processes_per_host=2,
             custom_mpi_options="-v --lr 35",
@@ -370,7 +370,7 @@ def test_mpi_master_run_python_efa(
             instance_type="ml.p4d.24xlarge",
         )
 
-        process = master.run(wait=False)
+        process = leader.run(wait=False)
 
         ssh_client().load_system_host_keys.assert_called()
         ssh_client().set_missing_host_key_policy.assert_called_with(policy())

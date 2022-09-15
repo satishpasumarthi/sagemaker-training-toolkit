@@ -65,7 +65,7 @@ class SMDataParallelRunner(process.ProcessRunner):
         args,
         env_vars,
         processes_per_host,
-        master_hostname,
+        leader_hostname,
         hosts,
         custom_mpi_options,
         network_interface_name,
@@ -81,7 +81,7 @@ class SMDataParallelRunner(process.ProcessRunner):
             user_entry_point (str): The name of the user entry point.
             args ([str]): A list of arguments to include when executing the entry point.
             env_vars (Dict[str, str]): A dictionary of environment variables.
-            master_hostname (str): The master hostname.
+            leader_hostname (str): The leader hostname.
             hosts ([str]): A list of hosts.
             custom_mpi_options (str): A string of custom MPI options to be parsed.
             network_interface_name (str): The network interface name.
@@ -95,7 +95,7 @@ class SMDataParallelRunner(process.ProcessRunner):
             user_entry_point, args, env_vars, processes_per_host
         )
 
-        self._master_hostname = master_hostname
+        self._leader_hostname = leader_hostname
         self._hosts = hosts
         self._processes_per_host = processes_per_host
         self._custom_mpi_options = custom_mpi_options
@@ -113,7 +113,7 @@ class SMDataParallelRunner(process.ProcessRunner):
     def _wait_for_workers(self):  # type: () -> None
         logger.info("Waiting for MPI workers to establish their SSH connections")
 
-        workers = [host for host in self._hosts if host != self._master_hostname]
+        workers = [host for host in self._hosts if host != self._leader_hostname]
         try:
             with timeout.timeout(seconds=self.timeout_in_seconds):
                 for host in workers:
@@ -248,7 +248,7 @@ class SMDataParallelRunner(process.ProcessRunner):
         if num_hosts > 1:
             # multi-node; use homogeneous
             # homogeneous mode uses 16 processes per host; 8 server; 8 worker
-            smdataparallel_server_addr = self._master_hostname
+            smdataparallel_server_addr = self._leader_hostname
             smdataparallel_server_port = 7592
             host_list = ["{}:{}".format(host, self._processes_per_host) for host in self._hosts]
             smdataparallel_flag = "SMDATAPARALLEL_USE_HOMOGENEOUS=1"
@@ -315,9 +315,9 @@ class SMDataParallelRunner(process.ProcessRunner):
 
         logger.info("Begin writing status file from leader node to worker nodes")
         # Write status file to all nodes
-        status_file = MPI_FINISHED_STATUS_FILE + "." + self._master_hostname
+        status_file = MPI_FINISHED_STATUS_FILE + "." + self._leader_hostname
         for host in self._hosts:
-            if host != self._master_hostname:
+            if host != self._leader_hostname:
                 status = _write_status_file(host, status_file)
                 retry_count = 5 if not status else 0
                 while not status:

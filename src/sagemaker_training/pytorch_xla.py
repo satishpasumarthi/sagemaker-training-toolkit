@@ -40,7 +40,7 @@ class PyTorchXLARunner(process.ProcessRunner):
         args,
         env_vars,
         processes_per_host,
-        master_hostname,
+        leader_hostname,
         current_host,
         hosts,
         num_gpus,
@@ -52,7 +52,7 @@ class PyTorchXLARunner(process.ProcessRunner):
             user_entry_point (str): The name of the user entry point.
             args ([str]): A list of arguments to include when executing the entry point.
             env_vars (dict(str,str)): A dictionary of environment variables.
-            master_hostname (str): The master hostname.
+            leader_hostname (str): The leader hostname.
             current_host (str): The current hostname.
             hosts ([str]): A list of hosts.
             num_gpus (int): The number of GPUs available per host.
@@ -60,7 +60,7 @@ class PyTorchXLARunner(process.ProcessRunner):
 
         super(PyTorchXLARunner, self).__init__(user_entry_point, args, env_vars, processes_per_host)
 
-        self._master_hostname = master_hostname
+        self._leader_hostname = leader_hostname
         self._current_host = current_host
         self._hosts = hosts
         self._num_gpus = num_gpus
@@ -95,7 +95,7 @@ class PyTorchXLARunner(process.ProcessRunner):
         if self._num_hosts > 1:
             os.environ[
                 "XRT_MESH_SERVICE_ADDRESS"
-            ] = f"{self._master_hostname}:{self.MESH_SERVICE_PORT}"
+            ] = f"{self._leader_hostname}:{self.MESH_SERVICE_PORT}"
 
         logger.info("Completed environment setup for distributed training through PT-XLA Runtime.")
 
@@ -141,7 +141,7 @@ class PyTorchXLARunner(process.ProcessRunner):
                 " shipped as part of our Deep Learning Containers."
                 " Please refer to "
                 "https://github.com/aws/deep-learning-containers"
-                "/blob/master/available_images.md"
+                "/blob/leader/available_images.md"
             ) from exception
 
     def _check_for_torch_xla(self):
@@ -155,7 +155,7 @@ class PyTorchXLARunner(process.ProcessRunner):
                 " in the execution environment. "
                 "SageMaker Training Compiler provides ready-to-use containers with PT-XLA. "
                 "Please refer to https://github.com/aws/deep-learning-containers"
-                "/blob/master/available_images.md "
+                "/blob/leader/available_images.md "
             ) from exception
 
     def _check_processor_compatibility(self):

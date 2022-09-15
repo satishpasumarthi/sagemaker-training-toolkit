@@ -134,7 +134,7 @@ model = fake_ml.Model(loss='elastic', optimizer='SGD')
 model.fit(x=x_train, y=y_train, epochs=args.epochs, batch_size=args.batch_size)
 
 if comm.rank == 0:
-    print("Model saving at master.")
+    print("Model saving at leader.")
     model_file = os.path.join(os.environ['SM_MODEL_DIR'], 'saved_model')
     model.save(model_file)
 """

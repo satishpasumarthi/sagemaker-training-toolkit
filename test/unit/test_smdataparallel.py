@@ -50,13 +50,13 @@ def test_smdataparallel_run_multi_node_python(
 ):
     with patch.dict(os.environ, clear=True):
         hosts = ["algo-1", "algo-2"]
-        master_hostname = hosts[0]
+        leader_hostname = hosts[0]
         num_hosts = len(hosts)
         num_processes_per_host = 2
         num_processes = num_processes_per_host * num_hosts
         host_list = ["{}:{}".format(host, num_processes_per_host) for host in hosts]
         network_interface_name = "ethw3"
-        smdataparallel_server_addr = master_hostname
+        smdataparallel_server_addr = leader_hostname
         smdataparallel_server_port = 7592
         smdataparallel_flag = "SMDATAPARALLEL_USE_HOMOGENEOUS=1"
 
@@ -67,7 +67,7 @@ def test_smdataparallel_run_multi_node_python(
                 "SM_TRAINING_ENV": '{"additional_framework_parameters":{"sagemaker_instance_type":"ml.p3.16xlarge"}}'
             },
             processes_per_host=num_processes_per_host,
-            master_hostname=master_hostname,
+            leader_hostname=leader_hostname,
             hosts=hosts,
             custom_mpi_options="--verbose",
             network_interface_name=network_interface_name,
@@ -179,7 +179,7 @@ def test_smdataparallel_run_single_node_python(
 ):
     with patch.dict(os.environ, clear=True):
         hosts = ["algo-1"]
-        master_hostname = hosts[0]
+        leader_hostname = hosts[0]
         num_hosts = len(hosts)
         num_processes_per_host = 4
         num_processes = num_processes_per_host * num_hosts
@@ -194,7 +194,7 @@ def test_smdataparallel_run_single_node_python(
                 "SM_TRAINING_ENV": '{"additional_framework_parameters":{"sagemaker_instance_type":"ml.p4d.24xlarge"}}'
             },
             processes_per_host=num_processes_per_host,
-            master_hostname=master_hostname,
+            leader_hostname=leader_hostname,
             hosts=hosts,
             custom_mpi_options="--verbose",
             network_interface_name=network_interface_name,
@@ -299,7 +299,7 @@ def test_hc_smdataparallel_run_single_node_python(
 ):
     with patch.dict(os.environ, clear=True):
         hosts = ["algo-1"]
-        master_hostname = hosts[0]
+        leader_hostname = hosts[0]
         num_hosts = len(hosts)
         num_processes_per_host = 8
         num_processes = num_processes_per_host * num_hosts
@@ -315,7 +315,7 @@ def test_hc_smdataparallel_run_single_node_python(
                 "current_instance_type": "ml.p4d.24xlarge"}'
             },
             processes_per_host=num_processes_per_host,
-            master_hostname=master_hostname,
+            leader_hostname=leader_hostname,
             hosts=hosts,
             custom_mpi_options="--verbose",
             network_interface_name=network_interface_name,

@@ -13,6 +13,7 @@
 """This module contains functionality related to distributed training using
 MPI (Message Passing Interface)."""
 import argparse
+import collections
 from inspect import getfile, isclass
 import logging
 import os
@@ -141,39 +142,6 @@ class WorkerRunner(process.ProcessRunner):
     def _wait_leader_to_start(self):  # type: () -> None
         while not _can_connect(self._leader_hostname):
             time.sleep(1)
-
-    # def _wait_leader_to_finish(self):  # type: () -> None
-    #     while _can_connect(self._leader_hostname):
-    #         time.sleep(30)
-
-
-def _write_env_vars_to_file():  # type: () -> None
-    with open("/etc/environment", "a") as f:
-        for name in os.environ:
-            f.write("{}={}\n".format(name, os.environ.get(name)))
-
-
-def _on_terminate(proc):
-    logger.info("Invoked on_terminate from psutil.wait_for_procs")
-    logger.info("process {} terminated with exit code {}".format(proc, proc.returncode))
-
-
-def _wait_orted_process_to_finish():  # type: () -> None
-    orted = _orted_process()
-    logger.info("Orted process found %s", orted)
-    logger.info("Waiting for orted process %s", orted)
-    gone, alive = psutil.wait_procs(orted, callback=_on_terminate)
-    return gone, alive
-
-
-def _orted_process():  # pylint: disable=inconsistent-return-statements
-    """Wait a maximum of 5 minutes for orted process to start."""
-    for _ in range(5 * 60):
-        procs = [p for p in psutil.process_iter(attrs=["name"]) if p.info["name"] == "orted"]
-        if procs:
-            logger.info("Process[es]: %s", procs)
-            return procs
-        time.sleep(1)
 
 
 class LeaderRunner(process.ProcessRunner):
@@ -461,28 +429,7 @@ def _can_connect(host, port=22):  # type: (str, int) -> bool
         return False
 
 
-def _write_status_file(host, status_file):
-    try:
-        logger.info(f"Start writing mpirun finished status to {host}")
-        output = subprocess.run(
-            ["ssh", str(host), "touch", f"{status_file}"],
-            capture_output=True,
-            text=True,
-            check=True,
-        )
-        logger.info(f"output from subprocess run {output}")
-        logger.info("Finished writing status file")
-        return True
-    except subprocess.CalledProcessError:
-        logger.info(f"Cannot connect to {host}")
-        return False
 
 
-def _parse_custom_mpi_options(custom_mpi_options):
-    """Parse custom MPI options provided by user. Known options default value will be overridden
-    and unknown options will be identified separately."""
 
-    parser = argparse.ArgumentParser()
-    parser.add_argument("--NCCL_DEBUG", default="INFO", type=str)
 
-    return parser.parse_known_args(custom_mpi_options.split())

@@ -876,10 +876,10 @@ class Environment(mapping.MappingMixin):  # pylint:disable=too-many-public-metho
         Get the leader hostname from the list of hosts in the distribution instance groups
         """
         if self._distribution_hosts:
-            sorted_dist_host_list = list(self._distribution_hosts).sort()
+            sorted_dist_host_list = sorted(list(self._distribution_hosts))
             return sorted_dist_host_list[0]
         # if no distribution found
-        sorted_host_list = list(self._hosts).sort()
+        sorted_host_list = sorted(list(self._hosts))
         return sorted_host_list[0]
 
     def sagemaker_s3_output(self):  # type: () -> str

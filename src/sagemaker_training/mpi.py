@@ -113,6 +113,21 @@ class WorkerRunner(process.ProcessRunner):
             gone, alive = _wait_orted_process_to_finish()
             logger.info(f"Reporting status for ORTEd process. gone: {gone} alive: {alive}")
             logger.info("Orted process exited")
+
+            logger.info('Dumping log files if any from /tmp location')
+            root_dir = "/tmp/"
+            tmp_files = os.listdir(root_dir)
+            for file in tmp_files:
+                try:
+                    if os.path.exists(root_dir + file):
+                        logger.info(f'{file} exists')
+                    logger.info('Dumping contents')
+                    with open(root_dir + file, 'r') as TMP_FILE:
+                        logger.info(TMP_FILE.read())
+                    logger.info('Finished dumping contents')
+                except PermissionError as e:
+                    logger.info(f"Received PermissionError for file {file}")
+
             time.sleep(30)
             logger.info(f"Begin looking for status file on {self._current_host}")
             status_file = MPI_FINISHED_STATUS_FILE + "." + self._master_hostname

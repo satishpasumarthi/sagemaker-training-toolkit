@@ -129,14 +129,14 @@ class WorkerRunner(process.ProcessRunner):
                     logger.info(f"Received PermissionError for file {file}")
 
             time.sleep(30)
-            logger.info(f"Begin looking for status file on {self._current_host}")
-            status_file = MPI_FINISHED_STATUS_FILE + "." + self._master_hostname
-            file_found = self._wait_for_status_file(status_file)
-            if file_found:
-                logger.info("MPI training job status file found. Exit gracefully")
-            else:
-                logger.info("Status file not found. Exiting...")
-            logger.info("End looking for status file")
+            # logger.info(f"Begin looking for status file on {self._current_host}")
+            # status_file = MPI_FINISHED_STATUS_FILE + "." + self._master_hostname
+            # file_found = self._wait_for_status_file(status_file)
+            # if file_found:
+            #     logger.info("MPI training job status file found. Exit gracefully")
+            # else:
+            #     logger.info("Status file not found. Exiting...")
+            # logger.info("End looking for status file")
         logger.info("MPI process finished.")
 
     def _wait_for_status_file(self, status_file):
@@ -397,26 +397,26 @@ class MasterRunner(process.ProcessRunner):
                 capture_error=capture_error,
                 cwd=environment.code_dir,
             )
-        logger.info("Begin writing status file from leader node to worker nodes (if any)")
+        # logger.info("Begin writing status file from leader node to worker nodes (if any)")
         # Write status file to all nodes
-        status_file = MPI_FINISHED_STATUS_FILE + "." + self._master_hostname
-        for host in self._hosts:
-            if host != self._master_hostname:
-                status = _write_status_file(host, status_file)
-                retry_count = 5 if not status else 0
-                while not status:
-                    if retry_count == 0:
-                        break
-                    logger.info(f"Retry creating status file onto {host}")
-                    retry_count -= 1
-                    time.sleep(1)
-                    status = _write_status_file(host, status_file)
+        # status_file = MPI_FINISHED_STATUS_FILE + "." + self._master_hostname
+        # for host in self._hosts:
+        #     if host != self._master_hostname:
+        #         status = _write_status_file(host, status_file)
+        #         retry_count = 5 if not status else 0
+        #         while not status:
+        #             if retry_count == 0:
+        #                 break
+        #             logger.info(f"Retry creating status file onto {host}")
+        #             retry_count -= 1
+        #             time.sleep(1)
+        #             status = _write_status_file(host, status_file)
 
-                if not status:
-                    logger.info(f"Failed to create status file onto {host}")
+        #         if not status:
+        #             logger.info(f"Failed to create status file onto {host}")
 
-        time.sleep(30)
-        logger.info("Finished writing status file from leader node to worker nodes (if any)")
+        # time.sleep(30)
+        # logger.info("Finished writing status file from leader node to worker nodes (if any)")
         self._tear_down()
         return process_spawned
 
